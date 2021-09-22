@@ -1,0 +1,589 @@
+===================================================================================
+==  Identificador:              MGNSEGXH                                         ==
+==  Version:                    1.0                                              ==
+==  Numero de proyecto:                                                          ==
+==  Nombre del proyecto:                                                         ==
+==  Desripcion:                 Macro para generar y enviar el archivo segundero ==
+==                              generado por aplicativo C                        ==
+==                                                                               ==
+==  Autor:                      Josue Alejandro Aguilar Moreno                   ==
+==  Fecha de creacion:          02/12/2020                                       ==
+==  Bitacora de modificaciones:                                                  ==
+==  ============================                                                 ==
+==    Fecha      Version        Autor           Descripcion                      ==
+==    =====      =======        =====           ===========                      ==
+==  02-Dic-20      1.0          JAAM        1. Version inicial                   ==
+==                                                                               ==
+===================================================================================
+
+?TACL MACRO
+#FRAME
+#SET #INFORMAT TACL
+
+===================================================================================
+==                         DEFINICION DE VARIABLES                               ==
+===================================================================================
+[#PUSH      :^var :^nombrelog :^log #OUT #IN :^system :^volume :^volumeFile
+            :^hora_proc_ini
+            :^yy :^aa :^mm :^dd :^julian :^ho :^mi :^se
+            :^dataset :^b40est
+            :^IN_SQL :^ADD_SQL :^OUT_SQL
+            :^NUM_LINEA :^LINEA_ROW :^NUM_ROWS
+            :^I46edo^Maq :^EDO^I46 :^I46^flag :^VOLI46 :^VOLB40
+            :^CONSULTAS :^cont_hrs :^min_restantes
+            :^exe^flag :^process_flag
+            :^PEXT_SEG :^SEXT_SEG :^MAXTENTS_SEG :^REC_SEG :^BLOCK_SEG
+            :^file_intelar :^fileB_intelar :^XHora :^vol_oss :^log_gnsgxh_gnd :^log_gnsxh_oss
+            :^cmds :^sh_cmds :^file_gnd :^file_oss :^sheall_log
+] == end push
+
+===================================================================================
+==                                                                               ==
+==                             DEFINICION DE RUTINAS                             ==
+==                                                                               ==
+===================================================================================
+
+===================================================================================
+==                       RUTINA SETEO DE DIRECTORIOS                             ==
+===================================================================================
+[#DEF SET_DIRS ROUTINE |BODY|
+    #SET :^var [#LOAD/KEEP 1/UTILBTCH]
+    #SET :^system [#MYSYSTEM]
+
+    [#CASE [:^system]
+        |\DEVB|
+            #SET :^volume          $DATA22
+            #SET :^VOLI46          $DATA12
+            #SET :^VOLB40          $DATA21
+            #SET :^PEXT_SEG        5200
+            #SET :^SEXT_SEG        1250
+            #SET :^MAXTENTS_SEG    300
+            #SET :^REC_SEG         400
+            #SET :^BLOCK_SEG       4096
+            #SET :^vol_oss         DATA22
+        |\UAT03 \UAT05|
+            #SET :^volume          $DATA13
+            #SET :^VOLI46          $DATA07
+            #SET :^VOLB40          $DATA11
+            #SET :^PEXT_SEG        5200
+            #SET :^SEXT_SEG        1250
+            #SET :^MAXTENTS_SEG    300
+            #SET :^REC_SEG         400
+            #SET :^BLOCK_SEG       4096
+            #SET :^vol_oss         DATA13
+        |\PRODA|
+            #SET :^volume          $DATA13
+            #SET :^VOLI46          $DATA18
+            #SET :^VOLB40          $DATA03
+            #SET :^PEXT_SEG        26900
+            #SET :^SEXT_SEG        8150
+            #SET :^MAXTENTS_SEG    300
+            #SET :^REC_SEG         400
+            #SET :^BLOCK_SEG       4096
+            #SET :^vol_oss         DATA13
+        |\PRODD|
+            #SET :^volume          $DATA13
+            #SET :^VOLI46          $DATA21
+            #SET :^VOLB40          $DATA18
+            #SET :^PEXT_SEG        26900
+            #SET :^SEXT_SEG        8150
+            #SET :^MAXTENTS_SEG    300
+            #SET :^REC_SEG         400
+            #SET :^BLOCK_SEG       4096
+            #SET :^vol_oss         DATA13
+        |OTHERWISE|
+            #OUTPUT < ESTE EQUIPO [:^system] NO SE VALIDA
+            #ABEND [#MYPID]
+    ]
+]
+
+===================================================================================
+==                       CALCULO DE LA FECHA Y HORA                              ==
+===================================================================================
+[#DEF ACT_FECHA_HORA ROUTINE |BODY|
+    #SETMANY _ :^julian , [#CONVERTTIMESTAMP [#JULIANTIMESTAMP 0] 0]
+    #SETMANY _ :^yy :^mm :^dd :^ho :^mi :^se _ _ ,[#INTERPRETETIMESTAMP :^julian]
+    #CHARGETV :^yy :^aa 03 TO 04
+    [#IF :^mm < 10 |THEN| #SET :^mm 0[:^mm]]
+    [#IF :^dd < 10 |THEN| #SET :^dd 0[:^dd]]
+    [#IF :^ho < 10 |THEN| #SET :^ho 0[:^ho]]
+    [#IF :^mi < 10 |THEN| #SET :^mi 0[:^mi]]
+    [#IF :^se < 10 |THEN| #SET :^se 0[:^se]]
+]
+
+===================================================================================
+==                       CALCULO DE LA FECHA Y HORA                              ==
+===================================================================================
+[#DEF DEF_EDO_MAQ ROUTINE |BODY|
+    #SET #inlineprefix +
+    #SET #inlineto
+    #SET #inlineout 1
+    #SET :^CONSULTAS
+    #SET :^OUT_SQL
+
+    SQLCI/INLINE, OUTV :^CONSULTAS/
+        + SET SESSION WARNINGS OFF;
+        + SELECT I46_MAQ_CVE_ESTADO
+        + FROM =I46-MAQUINAS
+        + WHERE I46_MAQ_NUM_ACCESO = 0
+        + FOR BROWSE ACCESS;
+        + EXIT;
+
+    #SET :^NUM_LINEA [#COMPUTE [#LINEFIND :^CONSULTAS 1 row(s) selected]]
+    #SET :^LINEA_ROW [#LINEGET :^CONSULTAS [:^NUM_LINEA]]
+    #SET :^NUM_ROWS [#CHARGET :^LINEA_ROW 5 TO 1]
+
+    [#IF :^NUM_ROWS = 0
+    |THEN|
+        #SET :^OUT_SQL I
+        #OUTPUT ERROR EN SQL AL CONSULTAR ESTADO MAQUINA
+    |ELSE|
+        #SET :^NUM_LINEA [#COMPUTE [#LINEFIND :^CONSULTAS 1 ---------------]+ 2 ]
+        #SET :^LINEA_ROW [#LINEGET :^CONSULTAS [:^NUM_LINEA]]
+        #SET :^OUT_SQL [:^LINEA_ROW]
+    ]
+
+    #OUTPUT ESTADO MAQUINA = [:^OUT_SQL]
+    [#IF :^OUT_SQL '=' "A"
+    |THEN|
+        #SET :^I46^flag 1
+        #OUTPUT -----------------------------
+        #OUTPUT ESTADO DE MAQUINA: ACTIVO
+        #OUTPUT -----------------------------
+    |ELSE|
+        #SET :^I46^flag 0
+        #OUTPUT -----------------------------
+        #OUTPUT ESTADO DE MAQUINA: INACTIVO
+        #OUTPUT -----------------------------
+    ]
+]
+
+===================================================================================
+==                       RUTINA QUE CONSULTA DATASET                             ==
+===================================================================================
+[#DEF CONST_DSET ROUTINE |BODY|
+    #SET #inlineprefix +
+    #SET #inlineto
+    #SET #inlineout 1
+    #SET :^CONSULTAS
+    #SET :^OUT_SQL
+
+    SQLCI /INLINE, OUTV :^CONSULTAS/
+        + SET SESSION WARNINGS OFF;
+        + SELECT B40_SET_DATASET
+        + FROM =B40-DATA-SET
+        + WHERE B40_SET_ESTATUS = [:^IN_SQL]
+        + ORDER BY B40_SET_FEC_OPER DESC;
+        + EXIT;
+
+    #SET :^NUM_LINEA [#COMPUTE [#LINEFIND :^CONSULTAS 1 row(s) selected]]
+    #SET :^LINEA_ROW [#LINEGET :^CONSULTAS [:^NUM_LINEA]]
+    #SET :^NUM_ROWS [#CHARGET :^LINEA_ROW 5 TO 1]
+
+    [#IF :^NUM_ROWS = 0
+    |THEN|
+        #SET :^OUT_SQL -1
+        #OUTPUT ERROR EN SQL AL CONSULTAR DATASET
+    |ELSE|
+        #SET :^NUM_LINEA [#COMPUTE [#LINEFIND :^CONSULTAS 1 --------------]+ 2 + :^ADD_SQL]
+        #SET :^LINEA_ROW [#LINEGET :^CONSULTAS [:^NUM_LINEA]]
+        #SET :^OUT_SQL  [:^LINEA_ROW]
+    ]
+]
+
+===================================================================================
+==                     RUTINA QUE CREA ESTRUCTURA DE ARCHIVO                     ==
+===================================================================================
+[#DEF DEF_CREA_ARCHIVO ROUTINE |BODY|
+    #OUTPUT
+    #OUTPUT INICIA CREACION DE FICHERO SEGUNDERO
+    #OUTPUT
+    FUP /INLINE, PRI 150 /
+    #SET #inlineprefix +
+    #SET #inlineto
+    #SET #inlineout 1
+        + RESET
+        + SET    TYPE U
+        + SET    FORMAT 2
+        + SET    BUFFERED
+        + SET    EXT ( [:^PEXT_SEG] PAGES, [:^SEXT_SEG] PAGES )
+        + SET    MAXEXTENTS [:^MAXTENTS_SEG]
+        + SET    REC [:^REC_SEG]
+        + SET    BLOCK [:^BLOCK_SEG]
+        + CREATE [:^volumeFile]
+        + EXIT
+    #OUTPUT
+    #OUTPUT TERMINA CREACION DE FICHERO SEGUNDERO
+    #OUTPUT
+]
+
+===================================================================================
+==                     RUTINA QUE CORREO EL PROGRAMA SEGUNDERO                   ==
+===================================================================================
+[#DEF DEF_CORRE_GENSEGXH ROUTINE |BODY|
+    #OUTPUT
+    #OUTPUT ----------------------------------------------
+    #OUTPUT    INICIO DE EJECUCION DE PROGRAMA GENSEGXH
+    #OUTPUT ----------------------------------------------
+    #OUTPUT
+    ACT_FECHA_HORA
+    #OUTPUT HORA INICIO GENSEGXH = [:^ho]:[:^mi]:[:^se]
+
+    RUN [:^volume].S264KOBJ.GENSEGXH /OUT [:^volume].S264LOGS.GENSEGXH/ [:^volumeFile] [:^dataset]
+
+    ACT_FECHA_HORA
+    #OUTPUT
+    #OUTPUT ----------------------------------------------
+    #OUTPUT    TERMINA DE EJECUCION DE PROGRAMA GENSEGXH
+    #OUTPUT ----------------------------------------------
+    #OUTPUT
+]
+
+===================================================================================
+==                RUTINA QUE ENVIA EL ARCHIVO SEGUNDERO POR INTELAR              ==
+===================================================================================
+[#DEF DEF_ENVIA_ARCH_INTELAR ROUTINE |BODY|
+    #OUTPUT ----------------------------------------------
+    #OUTPUT    INICIA ENVIO DE ARCHIVO SEGUNDERO
+    #OUTPUT ----------------------------------------------
+    #OUTPUT
+    ACT_FECHA_HORA
+    #OUTPUT HORA DE ENVIO [:^ho]:[:^mi]:[:^se]
+
+    PARAM PNAME         S264_050
+    PARAM LOCALFILE     [:^volumeFile]
+    PARAM REMOTEFILE    T164085002.[:^file_intelar]
+    PARAM SCRIPT        $DATA08.S137PARAM.QINTELAB
+    PARAM PATHLOG       $DATA08.S137LOGS
+    RUN $DATA08.S137TOBJ.EMSGRCD /OUT $VHS0,TERM $VHS0,PRI  150/
+
+    ACT_FECHA_HORA
+    #OUTPUT ----------------------------------------------
+    #OUTPUT    TERMINA ENVIO DE ARCHIVO SEGUNDERO
+    #OUTPUT ----------------------------------------------
+    #OUTPUT
+]
+
+===================================================================================
+==                   RUTINA LOOP QUE GENERA ARCHIVO A Y B                        ==
+===================================================================================
+[#DEF DEF_LOOP_ARCHIVO ROUTINE |BODY|
+    ACT_FECHA_HORA
+    #SET :^XHora [:^ho]
+
+    == SETEA LA HORA A 24 SI SON LAS 00 HRS ==
+    [#IF [:^XHora] = 00
+    |THEN|
+        #SET :^XHora 24
+    ]
+
+    == SE INICIALIZA PARA QUE PROCESE DOS VECES EL ARCHIVO ==
+    #SET :^process_flag 2
+
+    == SETA RUTAS PARA LOG DE OSS ==
+    #SET :^log_gnsgxh_gnd /G/[:^vol_oss]/S264LOGS/GENSEGXH
+    #SET :^log_gnsgxh_oss /opt/s622/180/tuxedo/log/GENSEGXH[:^yy][:^mm][:^dd][:^XHora].log
+
+    [#LOOP
+    |DO|
+        == SE INICIALIZA NOMBRE DE ARCHIVO Y DATASET ==
+        [#CASE [:^process_flag]
+            |2| == ARCHIVO HISTORICO ==
+                #OUTPUT ----------------------------------------------
+                #OUTPUT    INICIA CREACION Y ENVIO DE ARCHIVO B
+                #OUTPUT ----------------------------------------------
+                #OUTPUT
+                #SET    :^IN_SQL 'H'
+                #OUTPUT SE CARGA DATASET HISTORICO
+                #SET    :^volumeFile   [:^volume].S264LOGS.F5SRXHB
+                #SET    :^file_intelar  nvosegrec[:^yy][:^mm][:^ dd][:^XHora]B.log
+                == INICIA VARIABLES PARA COPIA A OSS ==
+                #SET    :^sh_cmds      /G/[:^vol_oss]/S264LOGS/CMDSXH
+                #SET    :^file_gnd     /G/[:^vol_oss]/S264LOGS/F5SRXHB
+                #SET    :^shell_log    /opt/s622/180/tuxedo/log/COPY_GENSEGXH_GND2OSS.log
+                #SET    :^file_oss     /opt/s622/180/tuxedo/log/[:^file_intelar]
+                == TERMINA VARIABLES PARA COPIA A OSS ==
+                #SET    :^process_flag 1
+            |1| == ARCHIVO DIA ==
+                #OUTPUT ----------------------------------------------
+                #OUTPUT    INICIA CREACION Y ENVIO DE ARCHIVO A
+                #OUTPUT ----------------------------------------------
+                #OUTPUT
+                #SET    :^IN_SQL 'D'
+                #OUTPUT SE CARGA DATASET DEL DIA
+                #SET    :^volumeFile   [:^volume].S264LOGS.F5SRXHA
+                #SET    :^file_intelar  nvosegrec[:^yy][:^mm][:^ dd][:^XHora]B.log
+                == INICIA VARIABLES PARA COPIA A OSS ==
+                #SET    :^sh_cmds      /G/[:^vol_oss]/S264LOGS/CMDSXH
+                #SET    :^file_gnd     /G/[:^vol_oss]/S264LOGS/F5SRXHA
+                #SET    :^shell_log    /opt/s622/180/tuxedo/log/COPY_GENSEGXH_GND2OSS.log
+                #SET    :^file_oss     /opt/s622/180/tuxedo/log/[:^file_intelar]
+                == TERMINA VARIABLES PARA COPIA A OSS ==
+                #SET    :^process_flag 0
+        ]
+        == FIN INICIALIZA NOMBRE DE ARCHIVO Y DATASET ==
+
+        [#IF [#FILEINFO/EXISTENCE/ [:^volumeFile]]
+        |THEN|
+            #OUTPUT SE ELIMINA VERSION ANTERIOR DEL ARCHIVO
+            PURGE [:^vulmeFile]
+        ]
+
+        DEF_CREA_ARCHIVO
+
+        [#IF [#FILEINFO/EXISTENCE/ [volumeFile]]
+        |THEN|
+            FUP SECURE [:^volumeFile], "NNNN"
+
+            #SET :^ADD_SQL 0
+            CONS_DSET
+            #SET :^dataset [:^OUT_SQL]
+            DELETE DEFINE =B121-REC-EXT
+            DELETE DEFINE =B220-SEG-OPER
+            RUN [:^volume].S264MACR.DEF5SEGS [:^dataset]
+
+            DEF_CORRE_GENSEGXH
+
+            == SE VALIDA QUE EL ARCHIVO NO ESTE VACIO ==
+            [#IF NOT [#FILEINFO/EOF/ [:^volumeFile]] = 0
+            |THEN|
+                #OUTPUT
+                #OUTPUT ------------------------------------
+                #OUTPUT ARCHIVO [:^volumeFile] EXISTE
+                #OUTPUT SE ENVIA A INTELAR...
+                #OUTPUT ------------------------------------
+                #OUTPUT
+
+                DEF_ENVIO_ARCH_INTELAR
+
+                #SET :^cmds
+                #APPEND :^cmds  echo  '-------------------------------------------------'
+                #APPEND :^cmds  echo  '--     INICIA COPIADO DEL PROCESO MGNSEGXH     --'
+                #APPEND :^cmds  echo  '--     HORA: [:^ho]:[:^mi]:[:^se]              --'
+                #APPEND :^cmds  echo  '-------------------------------------------------'
+                #APPEND :^cmds  echo  'cp [:^file_gnd] [:^file_oss]'
+                #APPEND :^cmds  cp    [:^file_gnd] [:^file_oss]
+                #APPEND :^cmds  if   ~[ -e [:^file_oss] ~]; then
+                #APPEND :^cmds  echo  'Existe el archivo [:^file_oss]'
+                #APPEND :^cmds  echo  'chmod 777 [:^file_oss]'
+                #APPEND :^cmds  chmod 777 [:^file_oss]
+                #APPEND :^cmds  echo  'ls -l [:^file_oss]'
+                #APPEND :^cmds  echo  ls -l [:^file_oss]
+                #APPEND :^cmds  fi
+                #APPEND :^cmds  if   ~[ -e [:^shell_log] ~]; then
+                #APPEND :^cmds  chmod 777 [:^shell_log]
+                #APPEND :^cmds  fi
+                #APPEND :^cmds  echo  '-------------------------------------------------'
+                #APPEND :^cmds  echo  '--     TERMINA COPIADO DEL PROCESO MGNSEGXH    --'
+                #APPEND :^cmds  echo  '--     HORA: [:^ho]:[:^mi]:[:^se]              --'
+                #APPEND :^cmds  echo  '-------------------------------------------------'
+
+                [#IF [#FILEINFO/EXISTENCE/ [:^volume].S264LOGS.CMDSXH]
+                |THEN|
+                    SINK [#PURGE [:^volume].S264LOGS.CMDSXH]
+                ]
+
+                VARTOFILE :^cmds    [:^volume].S264LOGS.CMDSXH
+                osh -p sh <- >>[:^shell_log] 2>&1 [:^sh_cmds]
+
+                [#IF [#FILEINFO/EXISTENCE/ [:^volume].S264LOGS.CMDSXH]
+                |THEN|
+                    SINK [#PURGE [:^volume].S264LOGS.CMDSXH]
+                ]
+            ]
+
+            #OUTPUT ---------------------------------------------------
+            #OUTPUT    TERMINA CREACION Y ENVIO DE ARCHIVO SEGUNDERO
+            #OUTPUT ---------------------------------------------------
+        |ELSE|
+            #OUTPUT ---------------------------------------------------
+            #OUTPUT    NO FUE POSIBLE CREAR EL ARCHIVO SEGUNDERO
+            #OUTPUT ---------------------------------------------------
+        ]
+    |UNTIL| ( :^process_flag = 0 )
+    ] == FIN LOOP
+]
+
+===================================================================================
+==                               PRINCIPIA PROGRAMA                              ==
+===================================================================================
+ACT_FECHA_HORA
+
+SET_DIRS
+
+== SE LIMPIA LA BITACORA DE LA MACRO ==
+#SET :^nombrelog [:^volume].S264LOGS.MGNSEGXH
+limpia_log [:^nombrelog]
+
+== SE LIMPIA BITACORA DE PROCESO ==
+limpia_log [:^volume].S264LOGS.GENSEGXH
+
+== SE CAMBIA LA SALIDA STANDAR A LOG ==
+#SET #OUT [:^nombrelog]
+
+== SE CARGAN DEFINES PARA DATASET Y MAQUINA ACTIVA ==
+ADD DEFINE =B40-DATA-SET, FILE [:^VOLB40].S264SQLT.B40DSET
+ADD DEFINE =I46-MAQUINAS, FILE [:^VOLI46].S264SQLT.I46MAQ
+
+#OUTPUT ----------------------------------------------------
+#OUTPUT INICIA MACRO MGNSEGXH
+#OUTPUT FECHA DE EJECUCION = [:^dd]/[:^mm]/[:^aa]
+#OUTPUT FECHA DE EJECUCION = [:^ho]:[:^mi]:[:^se]
+#OUTPUT ----------------------------------------------------
+#POP #OUT
+FUP SECURE [:^nombrelog], "NNNN"
+
+#SET :^cont_hrs 0
+#SET :^min_restantes 0
+#SET :^hora_proc_ini  0
+
+[#LOOP
+|DO|
+    #PUSH #OUT
+    #SET #OUT [:^nombrelog]
+    ACT_FECHA_HORA
+    #SET :^hora_proc_ini [:^ho] == Se almacena la hora en la que inicio el proceso ==
+    #OUTPUT -------------------------------------------------------
+    #OUTPUT INICIO DE EJECUCION  -  [:^dd]/[:^mm]/[:^aa] [:^ho]:[:^mi]:[:^se]
+    #OUTPUT -------------------------------------------------------
+    DEF_EDO_MAQ
+
+    [#IF (:^I46^flag = 1)
+    |THEN|
+        
+        DEF_LOOP_ARCHIVO
+
+        [#IF [#FILEINFO/EXISTENCE/ [:^volume].S264LOGS.GENSEGXH]
+        |THEN|
+            #OUTPUT INICIA COPIA DE LOG GENSEGXH A OSS
+            FUP SECURE [:^volume].S264LOGS.GENSEGXH, "NNNN"
+            #SET :^cmds
+            #APPEND :^cmds  echo  '---------------------------------------------'
+            #APPEND :^cmds  echo  '--      INICIA COPIADO DEL LOG MGNSEGXH      '
+            #APPEND :^cmds  echo  '---------------------------------------------'
+            #APPEND :^cmds  echo  'cp [:^log_gnsgxh_gnd] [:^log_gnsgxh_oss]'
+            #APPEND :^cmds  cp    [:^log_gnsgxh_gnd] [:^log_gnsgxh_oss]
+            #APPEND :^cmds  if   ~[ -e [:^log_gnsgxh_oss] ~]; then
+            #APPEND :^cmds  echo  'Existe el archivo [:^log_gnsgxh_oss]'
+            #APPEND :^cmds  chmod 777 [:^log_gnsgxh_oss]
+            #APPEND :^cmds  echo  'ls -l [:^log_gnsgxh_oss]'
+            #APPEND :^cmds  ls -l [:^log_gnsgxh_oss]
+            #APPEND :^cmds  fi
+            #APPEND :^cmds  if   ~[ -e [:^shell_log] ~]; then
+            #APPEND :^cmds  chmod 777 [:^shell_log]
+            #APPEND :^cmds  fi
+            #APPEND :^cmds  echo  '---------------------------------------------'
+            #APPEND :^cmds  echo  '--     TERMINA COPIADO DEL LOG MGNSEGXH      '
+            #APPEND :^cmds  echo  '---------------------------------------------'
+
+            [#IF [#FILEINFO/EXISTENCE/ [:^volume].S264LOGS.CMDSXH]
+            |THEN|
+                SINK [#PURGE [:^volume].S264LOGS.CMDSXH]
+            ]
+
+            VARTOFILE :^cmds [:^volume].S264LOGS.CMDSXH
+            osh -p sh <- >>[:^shelll_log] 2>&1 [:^sh_cmds]
+
+            [#IF [#FILEINFO/EXISTENCE/ [:^volume].S264LOGS.CMDSXH]
+            |THEN|
+                SINK [#PURGE [:^volume].S264LOGS.CMDSXH]
+            ]
+
+            limpia_log [:^volume].S264LOGS.GENSEGXH
+            #OUTPUT TERMINA COPIA DE LOG GENSEGXH A OSS
+        ]
+
+        DELAY 2 MIN
+
+        ACT_FECHA_HORA
+        #SET :^cont_hrs [#COMPUTE :^cont_hrs + 1]
+        #SET :^min_restantes [#COMPUTE 60 - :^mi]
+
+        [#IF :^min_restantes = 60
+        |THEN|
+            #SET :^min_restantes 0
+        ]
+
+        == se suman 5 minutos al proceso para que no choque con los siguientes jobs que corren a las 5:00 y 17:00 hrs ==
+        == los cuales reinician la salida estandar de todos los JOBS despues de mandarlos al AURLOG ==
+        == TLINE  -  5:00 hrs ==
+        == TLINE  - 17:00 hrs ==
+        [#IF [#MATCH [:^ho] 04] OR [#MATCH [:^ho] 16 ]
+        |THEN|
+            #SET :^min_restantes [#COMPUTE :^min_restantes + 5]
+        ]
+
+        == Se suman 30 minutos de espera al preceso para que no colicione con el batch de las 18:00 hrs. ==
+        == en donde se respaldan los logs durante el proceso, ocacionando que falle chmod y ls al no encontrar los log del proceso ==
+        [#IF [#MATCH [:^ho] 17 ]
+        |THEN|
+            #SET :^min_restantes [#COMPUTE :^min_restantes + 30]
+        ]
+
+        #OUTPUT
+        #OUTPUT CICLOS PROCESADOS = [:^cont_hrs]
+        [#IF ( [:^ho] <> 08 )
+        |THEN|
+            == Si el proceso toma mas de 1 hora no se duerme y continua con el siguente ciclo ==
+            [#IF [:^hora_proc_ini] = [:^ho]
+            |THEN|
+                #OUTPUT ----------------------------------------
+                #OUTPUT  ESPERANDO [:^min_restantes] MINUTOS PARA LA SIGUENTE EJECICION
+                #OUTPUT ----------------------------------------
+                #POP #OUT
+                DELAY [:^min_restantes] MIN
+            |ELSE|
+                #POP #OUT
+            ]
+        |ELSE|
+            #POP #OUT
+        ]
+    |ELSE|
+        DELAY 2 MIN
+        ACT_FECHA_HORA
+        #SET :^cont_hrs [#COMPUTE :^cont_hrs + 1]
+        #SET :^min_restantes [#COMPUE 60 - :^mi]
+
+        [#IF :^min_restantes = 60
+        |THEN|
+            #SET :^min_restantes 0
+        ]
+
+        == se suman 5 minutos al proceso para que no choque con los siguientes jobs que corren a las 5:00 y 17:00 hrs ==
+        == los cuales reinician la salida estandar de todos los JOBS despues de mandarlos al AURLOG ==
+        == TLINE  -  5:00 hrs ==
+        == TLINE  - 17:00 hrs ==
+        [#IF [#MATCH [:^ho] 04] OR [#MATCH [:^ho] 16 ]
+        |THEN|
+            #SET :^min_restantes [#COMPUTE :^min_restantes + 5]
+        ]
+
+        #OUTPUT CICLOS PROCESADOS = [:^cont_hrs]
+        #OUTPUT ------------------------------------------------
+        #OUTPUT NO CORRE MGNSEGXH, POR EQUIPO INACTIVO
+        #OUTPUT ------------------------------------------------
+
+        == El proceso no duerme cuando son los 8:00 hrs ==
+        [#IF ([:^ho] <> 08 )
+        |THEN|
+            #OUTPUT -------------------------------------------------
+            #OUTPUT  ESPERANDO [:^min_restantes] MINUTOS PARA LA SIGUENTE EJECUCION
+            #OUTPUT -------------------------------------------------
+            #POP #OUT
+            DELAY [:^hora:ini] MIN
+        |ELSE|
+            #POP #OUT
+        ]
+    ] == #IF (:^I46^flag = 1)
+|UNTIL| ( [:^ho] = 08)
+] == TERMINA LOOP
+
+ACT_FECHA_HORA
+#PUSH #POP
+#SET #OUT [:^nombrelog]
+#OUTPUT --------------------------------------------------------
+#OUTPUT  TERMINA MACRO MGNSEGXH
+#OUTPUT  HORA DE TERMINO = [:^ho]:[:^mi]:[:^se]
+#OUTPUT --------------------------------------------------------
+#POP #OUT
+#UNFRAME

@@ -1,0 +1,8 @@
+###############################################################
+###     VARIABLES DE AMBIANTE DEL PROCESO OPERACIONES       ###
+###############################################################
+ENV_GEN_OPERS_DIR_CONF;/home/wminakata/Documentos/Proyectos/DevC/usaPostgres/segundero/src/catOpers.txt
+
+CANT_OPERS;7
+
+MAX_ID;10
