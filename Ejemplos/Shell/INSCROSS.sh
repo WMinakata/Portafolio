@@ -185,29 +185,37 @@ then
                     then
                         vproc ${pieza}
                     fi
-
-                    echo "SE INSTALA PIEZA $pieza NUEVA"
-                    rutinaPresentacion
-                    cd $dirTemp
-                    chmod 777 $pieza
-                    mv $pieza $dirInst
-
-                    if [ "$tipo" -eq "OBJ" ];
-                    then
-                        rutinaCompilaSQL
-                    fi
-
+                    echo "SE RESPALDA PIEZA $pieza ACTUAL..."
+                    # Creando directorios de respaldo #
+                    [ ! -d ${dirInst}/${CR} ] && echo "CREANDO DIRECTORIO $dirInst/$CR"
+                    [ ! -d ${dirInst}/${CR} ] && echo "NO SE PUDO CREAR $dirInst/$CR"
+                    chmod 777 ${dirInst}/${CR}
                     cd $dirInst
-                    echo "DETALLE DE LA PIEZA $pieza INSTALDA..."
-                    rutinaPresentacion
-                    ls -ltr $pieza
-                    cksum $pieza
-
-                    if [ "$tipo" -eq "OBJ" ];
-                    then
-                        vproc $pieza
-                    fi
+                    mv $pieza $dirInst/$CR
                 fi
+
+                echo "SE INSTALA PIEZA $pieza NUEVA"
+                rutinaPresentacion
+                cd $dirTemp
+                chmod 777 $pieza
+                mv $pieza $dirInst
+
+                if [ "$tipo" -eq "OBJ" ];
+                then
+                    rutinaCompilaSQL
+                fi
+
+                cd $dirInst
+                echo "DETALLE DE LA PIEZA $pieza INSTALDA..."
+                rutinaPresentacion
+                ls -ltr $pieza
+                cksum $pieza
+
+                if [ "$tipo" -eq "OBJ" ];
+                then
+                    vproc $pieza
+                fi
+
                 echo "TERMINA INSTALACION DE CR: $CR"
                 rutinaPresentacion
             fi
