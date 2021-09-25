@@ -27,7 +27,7 @@ CFLAGS01 := -I$(INC_DIR) -g -Wall
 ############################################################################
 
 SOURCES   := $(wildcard *.c) # Consigue todos .c en el directorio actual
-OBJS      := $(subst .c,.o,$(SOURCES)) # Sustitulle los .c por .o
+OBJS      := $(subst .c,.o,$(SOURCES)) # Sustituye los .c por .o
 PATH_OBJS := $(addprefix $(BIN_DIR)/,$(OBJS)) # Se agrega ruta a objetos
 TARGET    := $(BIN_DIR)/EJECUTABLE # Nombre de ejecutable
 
