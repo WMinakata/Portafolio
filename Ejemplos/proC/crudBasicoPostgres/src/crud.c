@@ -282,7 +282,7 @@ short readTable(void)
     return SUCCESS;
 }
 
-/************************************************me/wminakata/Documentos/Proyectos/DevC/usaPostgres/segundero/src/catOpers.txt*********************************/
+/*********************************************************************************/
 /* Nombre de la funcion    : insertTable                                         */
 /* Descripcion             : Funcion para llenar tabla                           */
 /*                                                                               */
