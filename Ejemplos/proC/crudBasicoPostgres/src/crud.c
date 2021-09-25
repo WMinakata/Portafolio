@@ -282,7 +282,7 @@ short readTable(void)
     return SUCCESS;
 }
 
-/*********************************************************************************/
+/************************************************me/wminakata/Documentos/Proyectos/DevC/usaPostgres/segundero/src/catOpers.txt*********************************/
 /* Nombre de la funcion    : insertTable                                         */
 /* Descripcion             : Funcion para llenar tabla                           */
 /*                                                                               */
@@ -304,7 +304,7 @@ short insertTable(void)
         struct stB220SegOper   st_B220SegOper;
     EXEC SQL END DECLARE SECTION;
 
-    pFicheroOP = fopen("/home/wminakata/Documentos/Proyectos/DevC/usaPostgres/segundero/src/catOpers.txt", "r");
+    pFicheroOP = fopen(PATH_FILE, "r");
 
     if(pFicheroOP != NULL)
     {
