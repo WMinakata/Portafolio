@@ -92,8 +92,8 @@ int main(int argc, char argv[])
     }
 
     Fget32(pBuffer, STD_FML_INST_CVE, 0, strCve, NULL);
-    Fget32(pBuffer, STD_FML_INST_CVE, 0, strNumIndice, NULL);
-    Fget32(pBuffer, STD_FML_INST_CVE, 0, strInstNomb, NULL);
+    Fget32(pBuffer, STD_FML_INST_NUM_INDICE, 0, strNumIndice, NULL);
+    Fget32(pBuffer, STD_FML_INST_NOM, 0, strInstNomb, NULL);
 
     printf("Datos recuperados del servicio");
     printf("Clave: %s", strCve);
