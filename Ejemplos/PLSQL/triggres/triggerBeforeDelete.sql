@@ -1,0 +1,10 @@
+CREATE OR REPLACE TRIGGER tr_borradoAlumnos
+BEFORE DELETE
+ON alumnos
+FOR EACH ROW
+BEGIN
+    INSERT INTO control VALUES(USERS, SYSDATE);
+END tr_borradoAlumnos;
+
+DELETE FROM alumnos
+WHERE curso = 5;
